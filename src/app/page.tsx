@@ -30,13 +30,10 @@ const quickSuggestions = [
 
 const DashboardPage = () => {
   const { visualizations, addVisualization, removeVisualization } = useVisualizationStore();
-  const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
-  const [selectedComponent, setSelectedComponent] = useState<string>('');
+  const [selectedComponent, setSelectedComponent] = useState<string>('Auto');
   const [isLoading, setIsLoading] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [showWelcome, setShowWelcome] = useState(true);
-  const [chatMessages, setChatMessages] = useState<Array<{type: 'user' | 'ai', content: string, timestamp: Date}>>([]);
   const [typedWelcome, setTypedWelcome] = useState('');
   const [typedInsight, setTypedInsight] = useState('');
   const [isTypingWelcome, setIsTypingWelcome] = useState(true);
@@ -45,7 +42,9 @@ const DashboardPage = () => {
   const [showBadges, setShowBadges] = useState(false);
   const [currentInsightIndex, setCurrentInsightIndex] = useState(0);
   const [completedInsights, setCompletedInsights] = useState<string[]>([]);
-  const [activeVisualizationId, setActiveVisualizationId] = useState<string | null>(null);
+ const [activeVisualizationId, setActiveVisualizationId] = useState<string | null>(null);
+ const [isComponentDropdownOpen, setIsComponentDropdownOpen] = useState(false);
+ const [pinnedVisualizations, setPinnedVisualizations] = useState<Set<string>>(new Set());
 
   // Typing effect for welcome message with styled parts
   useEffect(() => {
@@ -144,15 +143,12 @@ const DashboardPage = () => {
     
     if (!chatInput.trim()) return;
     
-    // Add user message to chat
-    const userMessage = { type: 'user' as const, content: chatInput, timestamp: new Date() };
-    setChatMessages(prev => [...prev, userMessage]);
     
     setIsLoading(true);
     
     try {
       // Generate data based on user input and selected component
-      const prompt = selectedComponent 
+      const prompt = selectedComponent
         ? `${chatInput} - Use ${selectedComponent} component`
         : chatInput;
         
@@ -160,46 +156,74 @@ const DashboardPage = () => {
       addVisualization(data);
       
       // Set the new visualization as active
-      setActiveVisualizationId(data.id);
+      if (data.id) {
+        setActiveVisualizationId(data.id);
+      }
       
       // Scroll to the new visualization after a short delay
       setTimeout(() => {
         const element = document.getElementById(`viz-${data.id}`);
         if (element) {
-          element.scrollIntoView({ 
-            behavior: 'smooth', 
+          element.scrollIntoView({
+            behavior: 'smooth',
             inline: 'center',
             block: 'nearest'
           });
         }
       }, 100);
       
-      // Add AI response to chat
-      const aiMessage = { 
-        type: 'ai' as const, 
-        content: `Created ${data.type} visualization: "${data.title}"`, 
-        timestamp: new Date() 
-      };
-      setChatMessages(prev => [...prev, aiMessage]);
-      
     } catch (error) {
       console.error('Error generating data:', error);
-      const errorMessage = { 
-        type: 'ai' as const, 
-        content: 'Sorry, I encountered an error generating that visualization. Please try again.', 
-        timestamp: new Date() 
-      };
-      setChatMessages(prev => [...prev, errorMessage]);
     } finally {
       setIsLoading(false);
       setChatInput('');
-      setSelectedComponent('');
+      setSelectedComponent('Auto');
     }
   };
 
   const handleSuggestionClick = (suggestion: string) => {
     setChatInput(suggestion);
-    setIsChatOpen(true);
+  };
+  
+  const getComponentIcon = (component: string) => {
+    switch (component) {
+      case 'BarChart':
+        return '📊';
+      case 'LineChart':
+        return '📈';
+      case 'PieChart':
+        return '🥧';
+      case 'Table':
+        return '📋';
+      case 'Card':
+        return '📊';
+      case 'AreaChart':
+        return '⛰️';
+      case 'ScatterChart':
+        return '📉';
+      default:
+        return '📊';
+    }
+  };
+  
+  const downloadVisualization = (viz: ComponentData & { id: string }) => {
+    // Create a blob with the visualization data
+    const dataStr = JSON.stringify(viz, null, 2);
+    const dataBlob = new Blob([dataStr], { type: 'application/json' });
+    
+    // Create a download link
+    const url = URL.createObjectURL(dataBlob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${viz.title || 'visualization'}-${viz.id}.json`;
+    
+    // Trigger the download
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up
+    URL.revokeObjectURL(url);
   };
 
   const renderVisualization = (viz: ComponentData & { id: string }) => {
@@ -361,103 +385,208 @@ const DashboardPage = () => {
         )}
 
 
-        {/* Horizontal Scrollable Dashboard - when visualizations exist */}
+        {/* Carousel-like Dashboard - when visualizations exist */}
         {visualizations.length > 0 && (
           <div className="py-8">
             <div className="text-center mb-8">
               <h2 className="text-3xl font-bold text-gray-900 mb-4">📊 Your AI Dashboard</h2>
-              <p className="text-gray-600">Scroll horizontally to explore your visualizations</p>
+              <p className="text-gray-600">Click on any visualization to focus</p>
             </div>
             
-            {/* Horizontal Scroll Container */}
-            <div className="relative">
-              <div className="flex gap-8 overflow-x-auto pb-6 px-4 scroll-smooth" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
-                {visualizations.map((viz, index) => (
-                  <div 
-                    key={viz.id}
-                    id={`viz-${viz.id}`}
-                    className={`relative overflow-hidden group flex-shrink-0 transition-all duration-500 ${
-                      activeVisualizationId === viz.id 
-                        ? 'scale-105 ring-4 ring-blue-500/30' 
-                        : 'scale-100'
-                    }`}
-                    style={{ width: '500px', minWidth: '500px' }}
-                    onMouseEnter={() => setHoveredId(viz.id)}
-                    onMouseLeave={() => setHoveredId(null)}
-                    onClick={() => setActiveVisualizationId(viz.id)}
-                  >
-                    {/* Background gradient */}
-                    <div className="absolute inset-0 bg-gradient-to-br from-white via-blue-50/20 to-purple-50/20 rounded-3xl"></div>
-                    
-                    {/* Active indicator */}
-                    {activeVisualizationId === viz.id && (
-                      <div className="absolute -top-2 -left-2 -right-2 -bottom-2 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-3xl animate-pulse"></div>
-                    )}
-                    
-                    {/* Chart container */}
-                    <div className={`relative bg-white/80 backdrop-blur-xl border border-white/40 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 p-6 h-full cursor-pointer ${
-                      activeVisualizationId === viz.id 
-                        ? 'border-blue-300/60 bg-white/90' 
-                        : 'group-hover:scale-[1.01]'
-                    }`}>
-                      {/* Chart number indicator */}
-                      <div className="absolute top-4 left-4 w-8 h-8 bg-gradient-to-r from-blue-500 to-purple-600 text-white rounded-full flex items-center justify-center text-sm font-bold shadow-lg">
-                        {index + 1}
-                      </div>
+            {/* Carousel Container */}
+            <div className="relative overflow-hidden py-12">
+              <div className="flex justify-center items-center relative" style={{ height: '500px' }}>
+                {visualizations.map((viz, index) => {
+                  // Calculate position relative to active visualization
+                  const isActive = activeVisualizationId === viz.id;
+                  const isActiveIndex = visualizations.findIndex(v => v.id === activeVisualizationId);
+                  const currentIndex = index;
+                  const position = currentIndex - (isActiveIndex === -1 ? 0 : isActiveIndex);
+                  
+                  // Determine styling based on position
+                  let transformStyle = '';
+                  let opacity = 1;
+                  let blur = '';
+                  let scale = 1;
+                  let zIndex = 10;
+                  
+                  if (isActive) {
+                    // Active visualization - centered
+                    transformStyle = 'translateX(0)';
+                    zIndex = 30;
+                  } else if (position === -1) {
+                    // Previous visualization - left with blur
+                    transformStyle = 'translateX(-200px)';
+                    opacity = 0.7;
+                    blur = 'blur(2px)';
+                    scale = 0.85;
+                    zIndex = 20;
+                  } else if (position === 1) {
+                    // Next visualization - right with blur
+                    transformStyle = 'translateX(200px)';
+                    opacity = 0.7;
+                    blur = 'blur(2px)';
+                    scale = 0.85;
+                    zIndex = 20;
+                  } else {
+                    // Other visualizations - hidden
+                    transformStyle = position < 0 ? 'translateX(-400px)' : 'translateX(400px)';
+                    opacity = 0;
+                    zIndex = 5;
+                  }
+                  
+                  return (
+                    <div
+                      key={viz.id}
+                      id={`viz-${viz.id}`}
+                      className={`absolute overflow-hidden transition-all duration-500 ease-in-out ${
+                        isActive ? 'cursor-default' : 'cursor-pointer hover:scale-105'
+                      }`}
+                      style={{
+                        width: '500px',
+                        height: '400px',
+                        transform: transformStyle,
+                        opacity: opacity,
+                        filter: blur,
+                        transformOrigin: 'center',
+                        zIndex: zIndex,
+                        transition: 'all 0.5s cubic-bezier(0.25, 0.1, 0.25, 1)'
+                      }}
+                      onMouseEnter={() => setHoveredId(viz.id)}
+                      onMouseLeave={() => setHoveredId(null)}
+                      onClick={() => setActiveVisualizationId(viz.id)}
+                    >
+                      {/* Background gradient */}
+                      <div className="absolute inset-0 bg-gradient-to-br from-white via-blue-50/20 to-purple-50/20 rounded-3xl"></div>
                       
-                      {hoveredId === viz.id && (
-                        <button
-                          onClick={(e) => {
-                            e.stopPropagation();
-                            removeVisualization(viz.id);
-                          }}
-                          className="absolute top-4 right-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-2xl p-2.5 shadow-lg hover:shadow-xl transition-all duration-300 z-10 opacity-90 hover:opacity-100"
-                        >
-                          <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                          </svg>
-                        </button>
+                      {/* Active indicator */}
+                      {isActive && (
+                        <div className="absolute -top-2 -left-2 -right-2 -bottom-2 bg-gradient-to-r from-blue-500/20 to-purple-500/20 rounded-3xl animate-pulse"></div>
                       )}
                       
-                      {renderVisualization(viz)}
-                      
-                      {/* Subtle decoration */}
-                      <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-blue-200/5 to-purple-200/5 rounded-full blur-3xl -translate-y-20 translate-x-20 group-hover:scale-150 transition-transform duration-700"></div>
+                      {/* Chart container */}
+                      <div className={`relative bg-white/80 backdrop-blur-xl border border-white/40 rounded-3xl shadow-xl hover:shadow-2xl transition-all duration-500 p-6 h-full ${
+                        isActive
+                          ? 'border-blue-300/60 bg-white/90'
+                          : 'hover:scale-[1.01]'
+                      }`} style={{ transform: `scale(${scale})` }}>
+                        
+                        {hoveredId === viz.id && isActive && (
+                          <div className="absolute top-4 right-4 flex gap-2 z-10">
+                            {/* Pin button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                const newPinned = new Set(pinnedVisualizations);
+                                if (pinnedVisualizations.has(viz.id)) {
+                                  newPinned.delete(viz.id);
+                                } else {
+                                  newPinned.add(viz.id);
+                                }
+                                setPinnedVisualizations(newPinned);
+                              }}
+                              className={`${
+                                pinnedVisualizations.has(viz.id)
+                                  ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white'
+                                  : 'bg-white/80 backdrop-blur-sm text-gray-700 hover:bg-white'
+                              } rounded-full p-2 shadow-lg hover:shadow-xl transition-all duration-300 opacity-90 hover:opacity-100`}
+                              title={pinnedVisualizations.has(viz.id) ? "Unpin visualization" : "Pin visualization"}
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
+                              </svg>
+                            </button>
+                            
+                            {/* Download button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                downloadVisualization(viz);
+                              }}
+                              className="bg-white/80 backdrop-blur-sm text-gray-700 rounded-full p-2 shadow-lg hover:shadow-xl transition-all duration-300 opacity-90 hover:opacity-100 hover:bg-white"
+                              title="Download visualization"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16v1a3 3 0 003 3h10a3 3 0 003-3v-1m-4-4l-4 4m0 0l-4-4m4 4V4" />
+                              </svg>
+                            </button>
+                            
+                            {/* Close button */}
+                            <button
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                removeVisualization(viz.id);
+                              }}
+                              className="bg-gradient-to-r from-red-500 to-red-600 text-white rounded-full p-2 shadow-lg hover:shadow-xl transition-all duration-300 opacity-90 hover:opacity-100"
+                              title="Remove visualization"
+                            >
+                              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                              </svg>
+                            </button>
+                          </div>
+                        )}
+                        
+                        {renderVisualization(viz)}
+                        
+                        {/* Subtle decoration */}
+                        <div className="absolute top-0 right-0 w-40 h-40 bg-gradient-to-br from-blue-200/5 to-purple-200/5 rounded-full blur-3xl -translate-y-20 translate-x-20 group-hover:scale-150 transition-transform duration-700"></div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
                 
-                {/* Add new chart placeholder */}
-                <div className="flex-shrink-0 w-80 h-96 border-2 border-dashed border-gray-300 rounded-3xl flex items-center justify-center bg-white/50 backdrop-blur-sm group hover:border-blue-400 transition-colors duration-300">
-                  <div className="text-center">
-                    <div className="w-16 h-16 bg-gradient-to-r from-blue-100 to-purple-100 rounded-full flex items-center justify-center mx-auto mb-4 group-hover:scale-110 transition-transform duration-300">
-                      <svg className="w-8 h-8 text-blue-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                {/* Navigation arrows */}
+                {visualizations.length > 1 && (
+                  <>
+                    <button
+                      className="absolute left-4 top-1/2 transform -translate-y-1/2 bg-white/80 backdrop-blur-sm rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-300 z-40"
+                      onClick={() => {
+                        const currentIndex = activeVisualizationId
+                          ? visualizations.findIndex(v => v.id === activeVisualizationId)
+                          : 0;
+                        const prevIndex = (currentIndex - 1 + visualizations.length) % visualizations.length;
+                        setActiveVisualizationId(visualizations[prevIndex].id);
+                      }}
+                    >
+                      <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
                       </svg>
-                    </div>
-                    <p className="text-gray-500 font-medium mb-2">Create New Chart</p>
-                    <p className="text-sm text-gray-400">Use the chat below</p>
-                  </div>
-                </div>
+                    </button>
+                    <button
+                      className="absolute right-4 top-1/2 transform -translate-y-1/2 bg-white/80 backdrop-blur-sm rounded-full p-3 shadow-lg hover:shadow-xl transition-all duration-300 z-40"
+                      onClick={() => {
+                        const currentIndex = activeVisualizationId
+                          ? visualizations.findIndex(v => v.id === activeVisualizationId)
+                          : 0;
+                        const nextIndex = (currentIndex + 1) % visualizations.length;
+                        setActiveVisualizationId(visualizations[nextIndex].id);
+                      }}
+                    >
+                      <svg className="w-6 h-6 text-gray-700" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                      </svg>
+                    </button>
+                  </>
+                )}
               </div>
               
-              {/* Custom scrollbar */}
-              <style jsx>{`
-                .flex::-webkit-scrollbar {
-                  height: 8px;
-                }
-                .flex::-webkit-scrollbar-track {
-                  background: #f1f5f9;
-                  border-radius: 4px;
-                }
-                .flex::-webkit-scrollbar-thumb {
-                  background: linear-gradient(90deg, #3b82f6, #8b5cf6);
-                  border-radius: 4px;
-                }
-                .flex::-webkit-scrollbar-thumb:hover {
-                  background: linear-gradient(90deg, #2563eb, #7c3aed);
-                }
-              `}</style>
+              {/* Dots indicator */}
+              {visualizations.length > 1 && (
+                <div className="flex justify-center mt-8 space-x-2">
+                  {visualizations.map((viz) => (
+                    <button
+                      key={viz.id}
+                      className={`w-3 h-3 rounded-full transition-all duration-300 ${
+                        activeVisualizationId === viz.id
+                          ? 'bg-blue-500 scale-125'
+                          : 'bg-gray-300 hover:bg-gray-400'
+                      }`}
+                      onClick={() => setActiveVisualizationId(viz.id)}
+                    />
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}
@@ -468,34 +597,62 @@ const DashboardPage = () => {
       <div className="fixed bottom-0 left-0 right-0 bg-white/95 backdrop-blur-md border-t border-gray-200 shadow-2xl z-50">
         <div className="container mx-auto px-6 py-4">
           <div className="max-w-4xl mx-auto">
-            {/* Component Selection */}
-            <div className="mb-3">
-              <div className="flex flex-wrap gap-2 justify-center">
-                {availableComponents.map((component) => (
-                  <button
-                    key={component}
-                    onClick={() => setSelectedComponent(component === selectedComponent ? '' : component)}
-                    className={`px-3 py-1 text-xs rounded-full transition-all ${
-                      selectedComponent === component
-                        ? 'bg-gradient-to-r from-blue-500 to-purple-600 text-white shadow-md'
-                        : 'bg-gray-100 text-gray-600 hover:bg-gray-200'
-                    }`}
-                  >
-                    {component}
-                  </button>
-                ))}
-              </div>
-            </div>
-            
-            {/* Chat Input */}
-            <form onSubmit={handleChatSubmit} className="flex space-x-3">
+            {/* Chat Input with Component Selection */}
+            <form onSubmit={handleChatSubmit} className="flex space-x-3 items-end">
               <div className="flex-1 relative">
+                <div className="absolute left-4 top-1/2 transform -translate-y-1/2 flex items-center">
+                  <div className="relative">
+                    <button
+                      type="button"
+                      onClick={() => setIsComponentDropdownOpen(!isComponentDropdownOpen)}
+                      className="flex items-center gap-1 text-gray-500 hover:text-gray-700 transition-colors"
+                    >
+                      <span className="text-lg">
+                        {selectedComponent === 'Auto' || !selectedComponent ? '🤖' : getComponentIcon(selectedComponent)}
+                      </span>
+                      {(selectedComponent && selectedComponent !== 'Auto') && <span className="text-gray-300 ml-1">/</span>}
+                    </button>
+                    
+                    {isComponentDropdownOpen && (
+                      <div className="absolute bottom-full left-0 mb-1 w-48 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                        <div className="py-1">
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setSelectedComponent('Auto');
+                              setIsComponentDropdownOpen(false);
+                            }}
+                            className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                          >
+                            <span>🤖</span>
+                            <span>Auto</span>
+                          </button>
+                          {availableComponents.map((component) => (
+                            <button
+                              type="button"
+                              key={component}
+                              onClick={() => {
+                                setSelectedComponent(component);
+                                setIsComponentDropdownOpen(false);
+                              }}
+                              className="w-full text-left px-4 py-2 text-sm text-gray-700 hover:bg-gray-100 flex items-center gap-2"
+                            >
+                              <span>{getComponentIcon(component)}</span>
+                              <span>{component}</span>
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                
                 <input
                   type="text"
                   value={chatInput}
                   onChange={(e) => setChatInput(e.target.value)}
                   placeholder="Ask AI to create any visualization... e.g., 'Show sales trends for last quarter'"
-                  className="w-full border border-gray-300 rounded-2xl px-6 py-4 pr-16 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 placeholder-gray-400 shadow-sm"
+                  className="w-full border border-gray-300 rounded-3xl px-12 py-4 pr-16 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent text-gray-700 placeholder-gray-40 shadow-sm"
                   disabled={isLoading}
                 />
                 {isLoading && (
@@ -508,14 +665,16 @@ const DashboardPage = () => {
                   </div>
                 )}
               </div>
+              
               <button
                 type="submit"
-                className="bg-gradient-to-r from-blue-500 to-purple-600 text-white px-8 py-4 rounded-2xl hover:from-blue-600 hover:to-purple-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl font-medium"
+                className="bg-gradient-to-r from-green-500 to-teal-600 text-white px-8 py-4 rounded-3xl hover:from-green-600 hover:to-teal-700 transition-all duration-300 disabled:opacity-50 disabled:cursor-not-allowed shadow-lg hover:shadow-xl font-medium"
                 disabled={isLoading || !chatInput.trim()}
               >
                 {isLoading ? '⏳' : '✨ Generate'}
               </button>
             </form>
+            
           </div>
         </div>
       </div>

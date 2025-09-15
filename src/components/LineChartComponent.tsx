@@ -67,12 +67,11 @@ const LineChartComponent: React.FC<ChartComponentProps> = ({ data, dataKey, titl
               stroke="url(#lineGradient)"
               strokeWidth={3}
               dot={{ fill: '#10b981', stroke: '#ffffff', strokeWidth: 2, r: 4 }}
-              activeDot={{ 
-                r: 6, 
-                fill: '#10b981', 
-                stroke: '#ffffff', 
-                strokeWidth: 3,
-                drop: true
+              activeDot={{
+                r: 6,
+                fill: '#10b981',
+                stroke: '#ffffff',
+                strokeWidth: 3
               }}
             />
             <defs>
