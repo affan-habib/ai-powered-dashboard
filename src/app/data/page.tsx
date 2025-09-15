@@ -1,96 +1,134 @@
 'use client';
 
 import React, { useState } from 'react';
-import { ColumnDef } from '@tanstack/react-table';
+import { availableComponents, generateDataFromPrompt } from '../../utils/aiDataGenerator';
+import useVisualizationStore from '../../store/visualizationStore';
 import BarChartComponent from '../../components/BarChartComponent';
 import LineChartComponent from '../../components/LineChartComponent';
 import PieChartComponent from '../../components/PieChartComponent';
 import TableComponent from '../../components/TableComponent';
 import CardComponent from '../../components/CardComponent';
-import { salesData, userData, productData, tableData, cardData } from '../../data/mockData';
-
-// Define table columns
-interface User {
-  id: number;
-  name: string;
-  email: string;
-  role: string;
-  status: string;
-}
-
-const columns: ColumnDef<User>[] = [
-  {
-    accessorKey: 'name',
-    header: 'Name',
-  },
-  {
-    accessorKey: 'email',
-    header: 'Email',
-  },
-  {
-    accessorKey: 'role',
-    header: 'Role',
-  },
-  {
-    accessorKey: 'status',
-    header: 'Status',
-  },
-];
+import AreaChartComponent from '../../components/AreaChartComponent';
+import { ComponentData } from '../../types/componentData';
 
 const DashboardPage = () => {
+  const { visualizations, addVisualization, removeVisualization } = useVisualizationStore();
   const [isChatOpen, setIsChatOpen] = useState(false);
   const [chatInput, setChatInput] = useState('');
+  const [selectedComponent, setSelectedComponent] = useState<string>('');
+  const [isLoading, setIsLoading] = useState(false);
+  const [hoveredId, setHoveredId] = useState<string | null>(null);
 
-  const handleChatSubmit = (e: React.FormEvent) => {
+  const handleChatSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    // Handle chat submission logic here
-    console.log('Chat message:', chatInput);
-    setChatInput('');
+    
+    if (!chatInput.trim()) return;
+    
+    setIsLoading(true);
+    
+    try {
+      // Generate data based on user input and selected component
+      const prompt = selectedComponent 
+        ? `${chatInput} - Use ${selectedComponent} component`
+        : chatInput;
+        
+      const data = await generateDataFromPrompt(prompt);
+      addVisualization(data);
+    } catch (error) {
+      console.error('Error generating data:', error);
+    } finally {
+      setIsLoading(false);
+      setChatInput('');
+      setSelectedComponent('');
+    }
+  };
+
+  const renderVisualization = (viz: ComponentData & { id: string }) => {
+    switch (viz.type) {
+      case 'BarChart':
+        return (
+          <BarChartComponent
+            data={viz.data}
+            dataKey={viz.dataKey || 'value'}
+            title={viz.title}
+          />
+        );
+      case 'LineChart':
+        return (
+          <LineChartComponent
+            data={viz.data}
+            dataKey={viz.dataKey || 'value'}
+            title={viz.title}
+          />
+        );
+      case 'AreaChart':
+        return (
+          <AreaChartComponent
+            data={viz.data}
+            dataKey={viz.dataKey || 'value'}
+            title={viz.title}
+          />
+        );
+      case 'PieChart':
+        return (
+          <PieChartComponent
+            data={viz.data}
+            dataKey={viz.dataKey || 'value'}
+            title={viz.title}
+          />
+        );
+      case 'Table':
+        return (
+          <TableComponent
+            data={viz.data}
+            columns={viz.columns || []}
+            title={viz.title}
+          />
+        );
+      case 'Card':
+        return (
+          <CardComponent
+            title={viz.title}
+            value={viz.data[0]?.value || 'N/A'}
+          />
+        );
+      default:
+        return (
+          <BarChartComponent
+            data={viz.data}
+            dataKey={viz.dataKey || 'value'}
+            title={viz.title}
+          />
+        );
+    }
   };
 
   return (
     <div className="container mx-auto py-8 relative">
-      <h1 className="text-3xl font-bold mb-8">Dashboard</h1>
+      <h1 className="text-3xl font-bold mb-8">AI Data Visualizations</h1>
       
-      {/* Cards Section */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-        {cardData.map((card, index) => (
-          <CardComponent
-            key={index}
-            title={card.title}
-            value={card.value}
-            description={card.description}
-            trend={card.trend as 'up' | 'down' | undefined}
-            trendValue={card.trendValue}
-          />
+      {/* Visualization Grid */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
+        {visualizations.map((viz) => (
+          <div 
+            key={viz.id}
+            className="relative"
+            onMouseEnter={() => setHoveredId(viz.id)}
+            onMouseLeave={() => setHoveredId(null)}
+          >
+            {hoveredId === viz.id && (
+              <button
+                onClick={() => removeVisualization(viz.id)}
+                className="absolute top-2 right-2 bg-red-500 text-white rounded-full p-1 shadow-lg hover:bg-red-600 transition-all duration-300 z-10"
+              >
+                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+            {renderVisualization(viz)}
+          </div>
         ))}
-      </div>
-      
-      {/* Charts Section */}
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <BarChartComponent 
-          data={salesData} 
-          dataKey="sales" 
-          title="Sales Overview" 
-        />
-        <LineChartComponent 
-          data={userData} 
-          dataKey="users" 
-          title="User Growth" 
-        />
-      </div>
-      
-      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
-        <PieChartComponent 
-          data={productData} 
-          dataKey="value" 
-          title="Product Distribution" 
-        />
-        <TableComponent 
-          data={tableData} 
-          columns={columns} 
-          title="User Management" 
-        />
       </div>
 
       {/* Floating Chat Button */}
@@ -107,19 +145,41 @@ const DashboardPage = () => {
       {isChatOpen && (
         <div className="fixed bottom-24 left-1/2 transform -translate-x-1/2 w-full max-w-2xl bg-white border border-gray-200 rounded-lg shadow-lg z-10">
           <div className="p-4">
+            {/* Component Selection Badges */}
+            <div className="mb-4">
+              <p className="text-sm text-gray-600 mb-2">Select a component type (optional):</p>
+              <div className="flex flex-wrap gap-2">
+                {availableComponents.map((component) => (
+                  <button
+                    key={component}
+                    onClick={() => setSelectedComponent(component === selectedComponent ? '' : component)}
+                    className={`px-3 py-1 text-sm rounded-full ${
+                      selectedComponent === component
+                        ? 'bg-blue-500 text-white'
+                        : 'bg-gray-200 text-gray-700 hover:bg-gray-300'
+                    }`}
+                  >
+                    {component}
+                  </button>
+                ))}
+              </div>
+            </div>
+            
             <form onSubmit={handleChatSubmit} className="flex">
               <input
                 type="text"
                 value={chatInput}
                 onChange={(e) => setChatInput(e.target.value)}
-                placeholder="Ask me anything..."
+                placeholder="e.g., users in latest 30 days..."
                 className="flex-1 border border-gray-300 rounded-l-lg px-4 py-2 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                disabled={isLoading}
               />
               <button
                 type="submit"
-                className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 transition-colors"
+                className="bg-blue-500 text-white px-4 py-2 rounded-r-lg hover:bg-blue-600 transition-colors disabled:opacity-50"
+                disabled={isLoading || !chatInput.trim()}
               >
-                Send
+                {isLoading ? 'Generating...' : 'Send'}
               </button>
             </form>
           </div>
