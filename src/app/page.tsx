@@ -35,7 +35,6 @@ const DashboardPage = () => {
   const [selectedComponent, setSelectedComponent] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [hoveredId, setHoveredId] = useState<string | null>(null);
-  const [currentInsight, setCurrentInsight] = useState(0);
   const [showWelcome, setShowWelcome] = useState(true);
   const [chatMessages, setChatMessages] = useState<Array<{type: 'user' | 'ai', content: string, timestamp: Date}>>([]);
   const [typedWelcome, setTypedWelcome] = useState('');
@@ -389,7 +388,7 @@ const DashboardPage = () => {
               {chatMessages.length === 0 && (
                 <div className="text-center text-gray-500 py-8">
                   <p>👋 Ask me to create any visualization!</p>
-                  <p className="text-sm mt-2">Try: "Show sales data for last month" or click a suggestion below</p>
+                  <p className="text-sm mt-2">Try: &quot;Show sales data for last month&quot; or click a suggestion below</p>
                 </div>
               )}
               {chatMessages.map((message, index) => (

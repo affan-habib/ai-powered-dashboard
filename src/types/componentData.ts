@@ -11,5 +11,5 @@ export interface ComponentData {
   title: string;
   data: ChartDataPoint[];
  dataKey?: string;
-  columns?: ColumnDef<any>[];
+  columns?: ColumnDef<ChartDataPoint>[];
 }

@@ -1,5 +1,5 @@
 import { GoogleGenerativeAI } from '@google/generative-ai';
-import { ComponentData, ChartDataPoint } from '../types/componentData';
+import { ComponentData } from '../types/componentData';
 
 export type { ComponentData };
 
