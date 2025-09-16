@@ -136,6 +136,21 @@ const DashboardPage = () => {
     return () => clearInterval(insightTypingInterval);
   }, [showInsights, isTypingInsight, currentInsightIndex]);
 
+  // Auto-set first visualization as active when no active visualization is set
+  useEffect(() => {
+    if (visualizations.length > 0 && !activeVisualizationId) {
+      setActiveVisualizationId(visualizations[0].id);
+    }
+    // If the active visualization was removed, set the first available one as active
+    if (visualizations.length > 0 && activeVisualizationId && !visualizations.find(v => v.id === activeVisualizationId)) {
+      setActiveVisualizationId(visualizations[0].id);
+    }
+    // If no visualizations left, clear the active visualization
+    if (visualizations.length === 0) {
+      setActiveVisualizationId(null);
+    }
+  }, [visualizations, activeVisualizationId]);
+
   // Keep welcome message always visible - removed auto-hide timer
 
   const handleChatSubmit = async (e: React.FormEvent) => {
@@ -153,16 +168,14 @@ const DashboardPage = () => {
         : chatInput;
         
       const data = await generateDataFromPrompt(prompt);
-      addVisualization(data);
+      const newVisualizationId = addVisualization(data);
       
       // Set the new visualization as active
-      if (data.id) {
-        setActiveVisualizationId(data.id);
-      }
+      setActiveVisualizationId(newVisualizationId);
       
       // Scroll to the new visualization after a short delay
       setTimeout(() => {
-        const element = document.getElementById(`viz-${data.id}`);
+        const element = document.getElementById(`viz-${newVisualizationId}`);
         if (element) {
           element.scrollIntoView({
             behavior: 'smooth',

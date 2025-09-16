@@ -3,17 +3,20 @@ import { ComponentData } from '../types/componentData';
 
 interface VisualizationState {
   visualizations: (ComponentData & { id: string })[];
-  addVisualization: (visualization: ComponentData) => void;
+  addVisualization: (visualization: ComponentData) => string;
   removeVisualization: (id: string) => void;
   clearVisualizations: () => void;
 }
 
-const useVisualizationStore = create<VisualizationState>((set) => ({
+const useVisualizationStore = create<VisualizationState>((set, get) => ({
   visualizations: [],
-  addVisualization: (visualization) =>
+  addVisualization: (visualization) => {
+    const id = Date.now().toString();
     set((state) => ({
-      visualizations: [...state.visualizations, { ...visualization, id: Date.now().toString() }],
-    })),
+      visualizations: [...state.visualizations, { ...visualization, id }],
+    }));
+    return id;
+  },
   removeVisualization: (id) =>
     set((state) => ({
       visualizations: state.visualizations.filter((viz) => viz.id !== id),
